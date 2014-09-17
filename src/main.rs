@@ -4,7 +4,6 @@
 
 extern crate gfx;
 extern crate piston;
-// extern crate glfw_game_window;
 extern crate sdl2_game_window;
 #[phase(plugin)]
 extern crate gfx_macros;
@@ -13,18 +12,18 @@ extern crate time;
 #[phase(plugin, link)]
 extern crate itertools;
 
+
 // use glfw_game_window::WindowGLFW;
 use sdl2_game_window::WindowSDL2;
 use gfx::{Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
 use std::num::One;
-use itertools as it;
-use std::iter::Range;
-use std::num::FloatMath;
-//----------------------------------------
-// Cube associated data
+use voxel::{Air, Stone, Chunk};
 
+pub mod voxel;
+
+// Cube associated data
 #[vertex_format]
 struct Vertex {
     #[as_float]
@@ -77,54 +76,8 @@ fn start(argc: int, argv: *const *const u8) -> int {
 }
 
 
-enum Block {
-    Stone,
-    Air,
-}
-
-struct ChunkIterator<'a> {
-    chunk: &'a Chunk,
-    prod: it::FlatTuples<it::Product<(uint, uint), it::Product<uint, Range<uint>, Range<uint>>, Range<uint>>>,
-}
-
-impl<'a> Iterator<((uint, uint, uint), Block)> for ChunkIterator<'a> {
-    fn next(&mut self) -> Option<((uint, uint, uint), Block)> {
-        match self.prod.next() {
-            Some((x, y, z)) => Some(((x, y, z), self.chunk.data[x][y][z])),
-            None => None,
-        }
-    }
-
-}
-
-struct Chunk {
-    data: [[[Block, ..16], ..16], ..16],
-}
-
-impl Chunk {
-    fn new() -> Chunk {
-        let mut data = [[[Air, ..16], ..16], ..16];
-        for (x, y, z) in iproduct!(range(0u, 16u), range(0u, 16u), range(10u, 16u)) {
-            data[x][y][z] = Stone;
-        }
-        Chunk { data: data }
-    }
-
-    fn blocks<'a>(&'a self) -> ChunkIterator<'a> {
-        ChunkIterator {
-            chunk: self,
-            prod: iproduct!(range(0u, 16u), range(0u, 16u), range(0u, 16u)),
-        }
-    }
-}
-
-
-/*struct World {
-    chunks: Vec<((i64, i64), Chunk)>,
-}*/
-
-
 fn main() {
+    // Basic window setup
     let (win_width, win_height) = (1920, 1080);
     let mut window = WindowSDL2::new(
         piston::shader_version::opengl::OpenGL_3_2,
@@ -142,6 +95,7 @@ fn main() {
     let (mut device, frame) = window.gfx();
     let state = gfx::DrawState::new().depth(gfx::state::LessEqual, true);
 
+    // Generate geometry (this requires a device)
     let basic_cube = vec![
         Vertex::new([0., 0., 1.]),
         Vertex::new([1., 0., 1.]),
@@ -176,11 +130,10 @@ fn main() {
     let mut graphics = gfx::Graphics::new(device);
     let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
 
-    let mut data = Params {
-        u_model_view_proj: piston::vecmath::mat4_id(),
-        t_color: [1.0, 0.0, 0.0],
-    };
+    // Game state data
+    let chunk = Chunk::new();
 
+    // Camera handling
     let projection = cam::CameraPerspective {
             fov: 70.0f32,
             near_clip: 0.1,
@@ -188,7 +141,7 @@ fn main() {
             aspect_ratio: (win_width as f32) / (win_height as f32)
         }.projection();
     let mut first_person = cam::FirstPerson::new(
-        [0.5f32, 0.5, 4.0],
+        [8.0f32, 6.0, 8.0],
         cam::FirstPersonSettings{
             move_forward_button: Keyboard(keyboard::V),
             move_backward_button: Keyboard(keyboard::I),
@@ -202,6 +155,7 @@ fn main() {
         }
     );
 
+    // Iteration loop
     let mut game_iter = piston::EventIterator::new(
         &mut window,
         &piston::EventSettings {
@@ -210,7 +164,6 @@ fn main() {
         }
     );
 
-    let mut time = 0.0;
     for e in game_iter {
         match e {
             piston::Render(args) => {
@@ -223,28 +176,34 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
-                let model = [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ];
-                data.u_model_view_proj = cam::model_view_projection(
-                    model,
-                    first_person.camera(args.ext_dt).orthogonal(),
-                    projection
-                );
-                graphics.draw(&batch, &data, &frame);
+                for ((x, y, z), block) in chunk.blocks() {
+                    match block {
+                        Stone => {
+                            let model = [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [x as f32, y as f32, z as f32, 1.0],
+                            ];
+                            let data = Params{
+                                u_model_view_proj: cam::model_view_projection(
+                                    model,
+                                    first_person.camera(args.ext_dt).orthogonal(),
+                                    projection
+                                ),
+                                t_color: [0.55, 0.52, 0.48],
+                            };
+                            graphics.draw(&batch, &data, &frame);
+                        },
+                        Air => (),
+                    }
+                }
                 graphics.end_frame();
             },
             piston::Update(args) => {
-                time += args.dt;
                 first_person.update(args.dt);
-                data.t_color[1] = 0.5 * (1.0 + time.sin() as f32) ;
             },
             piston::Input(e) => first_person.input(&e),
         }
     }
 }
-
-
