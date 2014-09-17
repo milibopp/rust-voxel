@@ -18,8 +18,9 @@ use sdl2_game_window::WindowSDL2;
 use gfx::{Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
-use std::num::One;
-use voxel::{Air, Stone, Chunk};
+use std::num::{One, Float};
+use voxel::{Air, Stone, Landscape};
+use std::rand::{Rng, SeedableRng, XorShiftRng};
 
 pub mod voxel;
 
@@ -131,7 +132,8 @@ fn main() {
     let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
 
     // Game state data
-    let chunk = Chunk::new();
+    let mut rng: XorShiftRng = SeedableRng::from_seed([2, 3, 5, 8]);
+    let scape = Landscape::generate(&mut rng, (16, 16));
 
     // Camera handling
     let projection = cam::CameraPerspective {
@@ -150,8 +152,8 @@ fn main() {
             fly_up_button: Keyboard(keyboard::Space),
             fly_down_button: Keyboard(keyboard::LShift),
             move_faster_button: Keyboard(keyboard::LCtrl),
-            speed_horizontal: One::one(),
-            speed_vertical: One::one(),
+            speed_horizontal: 10.0,
+            speed_vertical: 10.0,
         }
     );
 
@@ -176,28 +178,25 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
-                for ((x, y, z), block) in chunk.blocks() {
-                    match block {
-                        Stone => {
-                            let model = [
-                                [1.0, 0.0, 0.0, 0.0],
-                                [0.0, 1.0, 0.0, 0.0],
-                                [0.0, 0.0, 1.0, 0.0],
-                                [x as f32, y as f32, z as f32, 1.0],
-                            ];
-                            let data = Params{
-                                u_model_view_proj: cam::model_view_projection(
-                                    model,
-                                    first_person.camera(args.ext_dt).orthogonal(),
-                                    projection
-                                ),
-                                t_color: [0.55, 0.52, 0.48],
-                            };
-                            graphics.draw(&batch, &data, &frame);
-                        },
-                        Air => (),
-                    }
-                }
+                for x in range(0u, 16) { for z in range(0u, 16) {
+                    let y = scape.height_data[x * 16 + z] as f32;
+                    let model = [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [x as f32, y.round(), z as f32, 1.0],
+                    ];
+                    let light = (y / 3. + 0.1);
+                    let data = Params{
+                        u_model_view_proj: cam::model_view_projection(
+                            model,
+                            first_person.camera(args.ext_dt).orthogonal(),
+                            projection
+                        ),
+                        t_color: [0.5 * light, (0.47 - y * 0.015) * light, 0.40 * light],
+                    };
+                    graphics.draw(&batch, &data, &frame);
+                }}
                 graphics.end_frame();
             },
             piston::Update(args) => {

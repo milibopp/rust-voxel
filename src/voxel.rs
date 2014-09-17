@@ -1,5 +1,8 @@
 use itertools as it;
 use std::iter::Range;
+use std::rand::{Rng, SeedableRng};
+use std::rand::distributions as dist;
+use std::rand::distributions::Sample;
 
 pub enum Block {
     Stone,
@@ -18,7 +21,6 @@ impl<'a> Iterator<((uint, uint, uint), Block)> for ChunkIterator<'a> {
             None => None,
         }
     }
-
 }
 
 pub struct Chunk {
@@ -43,3 +45,20 @@ impl Chunk {
 }
 
 
+pub struct Landscape {
+    pub height_data: Vec<f64>,
+    dims: (u32, u32),
+}
+
+impl Landscape {
+    pub fn generate<S, R: Rng + SeedableRng<S>>(rng: &mut R, dims: (u32, u32)) -> Landscape {
+        let (x, y) = dims;
+        let mut height_range = dist::Range::new(0.0f64, 3.0);
+        Landscape {
+            height_data: range(0, x * y)
+                .map(|_| height_range.sample(rng))
+                .collect(),
+            dims: dims,
+        }
+    }
+}
