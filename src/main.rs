@@ -10,6 +10,8 @@ extern crate sdl2_game_window;
 extern crate gfx_macros;
 extern crate native;
 extern crate time;
+#[phase(plugin, link)]
+extern crate itertools;
 
 // use glfw_game_window::WindowGLFW;
 use sdl2_game_window::WindowSDL2;
@@ -17,6 +19,8 @@ use gfx::{Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
 use std::num::One;
+use itertools as it;
+use std::iter::Range;
 //----------------------------------------
 // Cube associated data
 
@@ -100,6 +104,54 @@ GLSL_150: b"
 fn start(argc: int, argv: *const *const u8) -> int {
      native::start(argc, argv, main)
 }
+
+
+enum Block {
+    Stone,
+    Air,
+}
+
+struct ChunkIterator<'a> {
+    chunk: &'a Chunk,
+    prod: it::FlatTuples<it::Product<(uint, uint), it::Product<uint, Range<uint>, Range<uint>>, Range<uint>>>,
+}
+
+impl<'a> Iterator<((uint, uint, uint), Block)> for ChunkIterator<'a> {
+    fn next(&mut self) -> Option<((uint, uint, uint), Block)> {
+        match self.prod.next() {
+            Some((x, y, z)) => Some(((x, y, z), self.chunk.data[x][y][z])),
+            None => None,
+        }
+    }
+
+}
+
+struct Chunk {
+    data: [[[Block, ..16], ..16], ..16],
+}
+
+impl Chunk {
+    fn new() -> Chunk {
+        let mut data = [[[Air, ..16], ..16], ..16];
+        for (x, y, z) in iproduct!(range(0u, 16u), range(0u, 16u), range(10u, 16u)) {
+            data[x][y][z] = Stone;
+        }
+        Chunk { data: data }
+    }
+
+    fn blocks<'a>(&'a self) -> ChunkIterator<'a> {
+        ChunkIterator {
+            chunk: self,
+            prod: iproduct!(range(0u, 16u), range(0u, 16u), range(0u, 16u)),
+        }
+    }
+}
+
+
+/*struct World {
+    chunks: Vec<((i64, i64), Chunk)>,
+}*/
+
 
 fn main() {
     let (win_width, win_height) = (1920, 1080);
@@ -206,7 +258,7 @@ fn main() {
 
     let model = piston::vecmath::mat4_id();
     let projection = cam::CameraPerspective {
-            fov: 90.0f32,
+            fov: 70.0f32,
             near_clip: 0.1,
             far_clip: 1000.0,
             aspect_ratio: (win_width as f32) / (win_height as f32)
