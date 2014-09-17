@@ -217,7 +217,7 @@ fn main() {
         ];
 
         let buf = device.create_buffer_static(&index_data);
-        gfx::IndexSlice8(gfx::TriangleList, buf, 0, 36)
+        gfx::IndexSlice8(gfx::TriangleList, buf, 0, index_data.len() as u32)
     };
 
     let tinfo = gfx::tex::TextureInfo {
