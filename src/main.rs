@@ -179,14 +179,14 @@ fn main() {
                     &frame
                 );
                 for x in range(0u, 16) { for z in range(0u, 16) {
-                    let y = scape.height_data[x * 16 + z] as f32;
+                    let y = scape.get((x, z)).unwrap() as f32;
                     let model = [
                         [1.0, 0.0, 0.0, 0.0],
                         [0.0, 1.0, 0.0, 0.0],
                         [0.0, 0.0, 1.0, 0.0],
                         [x as f32, y.round(), z as f32, 1.0],
                     ];
-                    let light = (y / 3. + 0.1);
+                    let light = y / 3. + 0.1;
                     let data = Params{
                         u_model_view_proj: cam::model_view_projection(
                             model,

@@ -46,12 +46,12 @@ impl Chunk {
 
 
 pub struct Landscape {
-    pub height_data: Vec<f64>,
-    dims: (u32, u32),
+    height_data: Vec<f64>,
+    dims: (uint, uint),
 }
 
 impl Landscape {
-    pub fn generate<S, R: Rng + SeedableRng<S>>(rng: &mut R, dims: (u32, u32)) -> Landscape {
+    pub fn generate<S, R: Rng + SeedableRng<S>>(rng: &mut R, dims: (uint, uint)) -> Landscape {
         let (x, y) = dims;
         let mut height_range = dist::Range::new(0.0f64, 3.0);
         Landscape {
@@ -59,6 +59,17 @@ impl Landscape {
                 .map(|_| height_range.sample(rng))
                 .collect(),
             dims: dims,
+        }
+    }
+
+    pub fn get(&self, pos: (uint, uint)) -> Option<f64> {
+        let (x, y) = pos;
+        let (dx, dy) = self.dims;
+        if x < dx && y < dy {
+            Some(*self.height_data.get(x * dx + y))
+        }
+        else {
+            None
         }
     }
 }
