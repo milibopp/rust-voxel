@@ -21,6 +21,7 @@ use piston::input::{Keyboard, keyboard};
 use std::num::One;
 use itertools as it;
 use std::iter::Range;
+use std::num::FloatMath;
 //----------------------------------------
 // Cube associated data
 
@@ -28,15 +29,12 @@ use std::iter::Range;
 struct Vertex {
     #[as_float]
     a_pos: [f32, ..3],
-    #[as_float]
-    a_tex_coord: [f32, ..2],
 }
 
 impl Vertex {
-    fn new(pos: [f32, ..3], tc: [f32, ..2]) -> Vertex {
+    fn new(pos: [f32, ..3]) -> Vertex {
         Vertex {
             a_pos: pos,
-            a_tex_coord: tc,
         }
     }
 }
@@ -44,18 +42,15 @@ impl Vertex {
 #[shader_param(CubeBatch)]
 struct Params {
     u_model_view_proj: [[f32, ..4], ..4],
-    t_color: gfx::shade::TextureParam,
+    t_color: [f32, ..3],
 }
 
 static VERTEX_SRC: gfx::ShaderSource = shaders! {
 GLSL_150: b"
     #version 150 core
     in vec3 a_pos;
-    in vec2 a_tex_coord;
-    out vec2 v_TexCoord;
     uniform mat4 u_model_view_proj;
     void main() {
-        v_TexCoord = a_tex_coord;
         gl_Position = u_model_view_proj * vec4(a_pos, 1.0);
     }
 "
@@ -64,13 +59,10 @@ GLSL_150: b"
 static FRAGMENT_SRC: gfx::ShaderSource = shaders! {
 GLSL_150: b"
     #version 150 core
-    in vec2 v_TexCoord;
     out vec4 o_Color;
-    uniform sampler2D t_color;
+    uniform vec3 t_color;
     void main() {
-        vec4 tex = texture(t_color, v_TexCoord);
-        float blend = dot(v_TexCoord-vec2(0.5,0.5), v_TexCoord-vec2(0.5,0.5));
-        o_Color = mix(tex, vec4(0.0,0.0,0.0,0.0), blend*1.0);
+        o_Color = vec4(t_color, 1.0);
     }
 "
 };
@@ -151,104 +143,31 @@ fn main() {
     let state = gfx::DrawState::new().depth(gfx::state::LessEqual, true);
 
     let basic_cube = vec![
-        //top (0., 0., 1.)
-        Vertex::new([-1., -1.,  1.], [0., 0.]),
-        Vertex::new([ 1., -1.,  1.], [1., 0.]),
-        Vertex::new([ 1.,  1.,  1.], [1., 1.]),
-        Vertex::new([-1.,  1.,  1.], [0., 1.]),
-        //bottom (0., 0., -1.)
-        Vertex::new([ 1.,  1., -1.], [0., 0.]),
-        Vertex::new([-1.,  1., -1.], [1., 0.]),
-        Vertex::new([-1., -1., -1.], [1., 1.]),
-        Vertex::new([ 1., -1., -1.], [0., 1.]),
-        //right (1., 0., 0.)
-        Vertex::new([ 1., -1., -1.], [0., 0.]),
-        Vertex::new([ 1.,  1., -1.], [1., 0.]),
-        Vertex::new([ 1.,  1.,  1.], [1., 1.]),
-        Vertex::new([ 1., -1.,  1.], [0., 1.]),
-        //left (-1., 0., 0.)
-        Vertex::new([-1.,  1.,  1.], [0., 0.]),
-        Vertex::new([-1., -1.,  1.], [1., 0.]),
-        Vertex::new([-1., -1., -1.], [1., 1.]),
-        Vertex::new([-1.,  1., -1.], [0., 1.]),
-        //front (0., 1., 0.)
-        Vertex::new([-1.,  1., -1.], [0., 0.]),
-        Vertex::new([ 1.,  1., -1.], [1., 0.]),
-        Vertex::new([ 1.,  1.,  1.], [1., 1.]),
-        Vertex::new([-1.,  1.,  1.], [0., 1.]),
-        //back (0., -1., 0.)
-        Vertex::new([ 1., -1.,  1.], [0., 0.]),
-        Vertex::new([-1., -1.,  1.], [1., 0.]),
-        Vertex::new([-1., -1., -1.], [1., 1.]),
-        Vertex::new([ 1., -1., -1.], [0., 1.]),
+        Vertex::new([0., 0., 1.]),
+        Vertex::new([1., 0., 1.]),
+        Vertex::new([0., 1., 1.]),
+        Vertex::new([1., 1., 1.]),
+        Vertex::new([0., 1., 0.]),
+        Vertex::new([1., 1., 0.]),
+        Vertex::new([0., 0., 0.]),
+        Vertex::new([1., 0., 0.]),
     ];
-    let vertex_data = {
-        let mut data = Vec::new();
-        for i in range(0u, 10) {
-            data.extend(
-                basic_cube.iter()
-                    .map(|v| {
-                        Vertex::new(
-                            [
-                                v.a_pos[0] * 0.5 + (i as f32),
-                                v.a_pos[1] * 0.5,
-                                v.a_pos[2] * 0.5,
-                            ],
-                            v.a_tex_coord
-                        )
-                    })
-            );
-        }
-        data
-    };
 
-    let mesh = device.create_mesh(vertex_data);
-
-    let cube_indices = vec![
-        0, 1, 2, 2, 3, 0,    //top
-        4, 5, 6, 6, 7, 4,       //bottom
-        8, 9, 10, 10, 11, 8,    //right
-        12, 13, 14, 14, 15, 12, //left
-        16, 17, 18, 18, 19, 16, //front
-        20, 21, 22, 22, 23, 20, //back
-    ];
+    let mesh = device.create_mesh(basic_cube);
 
     let slice = {
-        let mut index_data = Vec::new();
-        for i in range(0u32, 10) {
-            index_data.extend(
-                cube_indices.iter()
-                .map(|&index| index + (i * basic_cube.len() as u32))
-            );
-        }
-
+        let index_data = vec![
+            0u8, 1, 2, 2, 3, 1,
+            2, 3, 4, 4, 5, 3,
+            0, 1, 6, 6, 7, 1,
+            4, 5, 6, 6, 7, 5,
+            0, 2, 4, 4, 6, 0,
+            1, 3, 5, 5, 7, 1,
+        ];
         let buf = device.create_buffer_static(&index_data);
-        gfx::IndexSlice32(gfx::TriangleList, buf, 0, index_data.len() as u32)
+        gfx::IndexSlice8(gfx::TriangleList, buf, 0, index_data.len() as u32)
     };
 
-    let tinfo = gfx::tex::TextureInfo {
-        width: 1,
-        height: 1,
-        depth: 1,
-        levels: 1,
-        kind: gfx::tex::Texture2D,
-        format: gfx::tex::RGBA8,
-    };
-    let img_info = tinfo.to_image_info();
-    let texture = device.create_texture(tinfo).unwrap();
-    device.update_texture(
-            &texture, 
-            &img_info,
-            &vec![0x20u8, 0xA0u8, 0xC0u8, 0x00u8].as_slice()
-        ).unwrap();
-
-    let sampler = device.create_sampler(
-        gfx::tex::SamplerInfo::new(
-            gfx::tex::Bilinear, 
-            gfx::tex::Clamp
-        )
-    );
-    
     let program = device.link_program(
             VERTEX_SRC.clone(), 
             FRAGMENT_SRC.clone()
@@ -259,10 +178,9 @@ fn main() {
 
     let mut data = Params {
         u_model_view_proj: piston::vecmath::mat4_id(),
-        t_color: (texture, Some(sampler)),
+        t_color: [1.0, 0.0, 0.0],
     };
 
-    let model = piston::vecmath::mat4_id();
     let projection = cam::CameraPerspective {
             fov: 70.0f32,
             near_clip: 0.1,
@@ -292,6 +210,7 @@ fn main() {
         }
     );
 
+    let mut time = 0.0;
     for e in game_iter {
         match e {
             piston::Render(args) => {
@@ -304,15 +223,25 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
+                let model = [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ];
                 data.u_model_view_proj = cam::model_view_projection(
-                        model,
-                        first_person.camera(args.ext_dt).orthogonal(),
-                        projection
-                    );
+                    model,
+                    first_person.camera(args.ext_dt).orthogonal(),
+                    projection
+                );
                 graphics.draw(&batch, &data, &frame);
                 graphics.end_frame();
             },
-            piston::Update(args) => first_person.update(args.dt),
+            piston::Update(args) => {
+                time += args.dt;
+                first_person.update(args.dt);
+                data.t_color[1] = 0.5 * (1.0 + time.sin() as f32) ;
+            },
             piston::Input(e) => first_person.input(&e),
         }
     }
