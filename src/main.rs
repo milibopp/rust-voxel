@@ -19,7 +19,7 @@ use gfx::{Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
 use std::num::Float;
-use voxel::Landscape;
+use voxel::{Stone, Air, World, Landscape};
 use std::rand::{SeedableRng, XorShiftRng};
 
 pub mod voxel;
@@ -134,6 +134,8 @@ fn main() {
     // Game state data
     let mut rng: XorShiftRng = SeedableRng::from_seed([2, 3, 5, 8]);
     let scape = Landscape::generate(&mut rng, (16, 16));
+    let mut world = World::new(scape);
+    let chunk = world.get_chunk((0, 0, 0));
 
     // Camera handling
     let projection = cam::CameraPerspective {
@@ -178,25 +180,29 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
-                for x in range(0u, 16) { for z in range(0u, 16) {
-                    let y = scape.get((x, z)).unwrap() as f32;
-                    let model = [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [x as f32, y.round(), z as f32, 1.0],
-                    ];
-                    let light = y / 3. + 0.1;
-                    let data = Params{
-                        u_model_view_proj: cam::model_view_projection(
-                            model,
-                            first_person.camera(args.ext_dt).orthogonal(),
-                            projection
-                        ),
-                        t_color: [0.5 * light, (0.47 - y * 0.015) * light, 0.40 * light],
-                    };
-                    graphics.draw(&batch, &data, &frame);
-                }}
+                for ((x, y, z), block) in chunk.blocks() {
+                    match block {
+                        Stone => {
+                            let model = [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [x as f32, z as f32, y as f32, 1.0],
+                            ];
+                            let light = (z as f32) / 30. + 0.6;
+                            let data = Params{
+                                u_model_view_proj: cam::model_view_projection(
+                                    model,
+                                    first_person.camera(args.ext_dt).orthogonal(),
+                                    projection
+                                ),
+                                t_color: [0.5 * light, (0.47 - x as f32 * 0.005) * light, 0.40 * light],
+                            };
+                            graphics.draw(&batch, &data, &frame);
+                        },
+                        Air => (),
+                    }
+                }
                 graphics.end_frame();
             },
             piston::Update(args) => {
