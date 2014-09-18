@@ -19,26 +19,15 @@ use gfx::{Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
 use std::num::Float;
-use voxel::{Stone, Air, World, Landscape};
 use std::rand::{SeedableRng, XorShiftRng};
 
+use voxel::{Stone, Air, World, Landscape};
+use geometry::make_cube;
+
 pub mod voxel;
+pub mod geometry;
 
 // Cube associated data
-#[vertex_format]
-struct Vertex {
-    #[as_float]
-    a_pos: [f32, ..3],
-}
-
-impl Vertex {
-    fn new(pos: [f32, ..3]) -> Vertex {
-        Vertex {
-            a_pos: pos,
-        }
-    }
-}
-
 #[shader_param(CubeBatch)]
 struct Params {
     u_model_view_proj: [[f32, ..4], ..4],
@@ -97,37 +86,11 @@ fn main() {
     let state = gfx::DrawState::new().depth(gfx::state::LessEqual, true);
 
     // Generate geometry (this requires a device)
-    let basic_cube = vec![
-        Vertex::new([0., 0., 1.]),
-        Vertex::new([1., 0., 1.]),
-        Vertex::new([0., 1., 1.]),
-        Vertex::new([1., 1., 1.]),
-        Vertex::new([0., 1., 0.]),
-        Vertex::new([1., 1., 0.]),
-        Vertex::new([0., 0., 0.]),
-        Vertex::new([1., 0., 0.]),
-    ];
-
-    let mesh = device.create_mesh(basic_cube);
-
-    let slice = {
-        let index_data = vec![
-            0u8, 1, 2, 2, 3, 1,
-            2, 3, 4, 4, 5, 3,
-            0, 1, 6, 6, 7, 1,
-            4, 5, 6, 6, 7, 5,
-            0, 2, 4, 4, 6, 0,
-            1, 3, 5, 5, 7, 1,
-        ];
-        let buf = device.create_buffer_static(&index_data);
-        gfx::IndexSlice8(gfx::TriangleList, buf, 0, index_data.len() as u32)
-    };
-
+    let (mesh, slice) = make_cube(&mut device);
     let program = device.link_program(
             VERTEX_SRC.clone(), 
             FRAGMENT_SRC.clone()
         ).unwrap();
-
     let mut graphics = gfx::Graphics::new(device);
     let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
 
@@ -189,7 +152,12 @@ fn main() {
                                     [1.0, 0.0, 0.0, 0.0],
                                     [0.0, 1.0, 0.0, 0.0],
                                     [0.0, 0.0, 1.0, 0.0],
-                                    [(i * 16 + x as int) as f32, (k * 16 + z as int) as f32, (j * 16 + y as int) as f32, 1.0],
+                                    [
+                                        (i * 16 + x as int) as f32,
+                                        (k * 16 + z as int) as f32,
+                                        (j * 16 + y as int) as f32,
+                                        1.0
+                                    ],
                                 ];
                                 let light = (z as f32) / 30. + 0.6;
                                 let data = Params{
