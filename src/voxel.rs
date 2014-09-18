@@ -8,7 +8,6 @@ use std::num::pow;
 use std::iter::AdditiveIterator;
 
 
-#[deriving(Show)]
 pub enum Block {
     Stone,
     Air,
@@ -74,11 +73,11 @@ impl World {
     }
 
     pub fn get_chunk<'a>(&'a mut self, coord: (int, int, int)) -> &'a Chunk {
-        let (i, j, k) = coord;
         // Has that chunk already been generated?
         let hm_cache = &mut self.height_map_cache;
         let landscape = &mut self.landscape;
         self.chunk_cache.find_or_insert_with(coord, |&coord| {
+            let (i, j, k) = coord;
             // Let's see if we have at least a height map cached…
             let height_map = hm_cache.find_or_insert_with(
                 (i, j), |&(i, j)|
@@ -87,12 +86,12 @@ impl World {
                 // Bilinear interpolation
                 let corners: Vec<((int, int), f64)> =
                     iproduct!(range(0i, 2), range(0i, 2))
-                    .map(|(ii, jj)| (
-                        (ii * 16, jj * 16),
+                    .map(|(di, dj)|
+                        (((1 - di) * 16, (1 - dj) * 16),
                         landscape
-                        .get(((i + ii) as uint, (j + jj) as uint))
-                        .unwrap()
-                    ))
+                        .get(((i + di) as uint, (j + dj) as uint))
+                        .unwrap())
+                    )
                     .collect();
                 for (x, y) in iproduct!(range(0i, 16), range(0i, 16)) {
                     height_map[x as uint][y as uint] =
@@ -131,7 +130,7 @@ impl World {
             } else {
                 let mut data = [[[Air, ..16], ..16], ..16];
                 for (x, y) in iproduct!(range(0i, 16), range(0i, 16)) {
-                    let h = height_map[(i * 16 + x) as uint][(j * 16 + y) as uint] - k * 16;
+                    let h = height_map[x as uint][y as uint] - k * 16;
                     for z in range(0, h) {
                         data[x as uint][y as uint][z as uint] = Stone;
                     }
@@ -151,7 +150,7 @@ pub struct Landscape {
 impl Landscape {
     pub fn generate<S, R: Rng + SeedableRng<S>>(rng: &mut R, dims: (uint, uint)) -> Landscape {
         let (x, y) = dims;
-        let mut height_range = dist::Range::new(0.0f64, 3.0);
+        let mut height_range = dist::Range::new(1.0f64, 6.0);
         Landscape {
             height_data: range(0, x * y)
                 .map(|_| height_range.sample(rng))

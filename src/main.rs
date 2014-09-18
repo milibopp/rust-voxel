@@ -135,7 +135,6 @@ fn main() {
     let mut rng: XorShiftRng = SeedableRng::from_seed([2, 3, 5, 8]);
     let scape = Landscape::generate(&mut rng, (16, 16));
     let mut world = World::new(scape);
-    let chunk = world.get_chunk((0, 0, 0));
 
     // Camera handling
     let projection = cam::CameraPerspective {
@@ -180,27 +179,31 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
-                for ((x, y, z), block) in chunk.blocks() {
-                    match block {
-                        Stone => {
-                            let model = [
-                                [1.0, 0.0, 0.0, 0.0],
-                                [0.0, 1.0, 0.0, 0.0],
-                                [0.0, 0.0, 1.0, 0.0],
-                                [x as f32, z as f32, y as f32, 1.0],
-                            ];
-                            let light = (z as f32) / 30. + 0.6;
-                            let data = Params{
-                                u_model_view_proj: cam::model_view_projection(
-                                    model,
-                                    first_person.camera(args.ext_dt).orthogonal(),
-                                    projection
-                                ),
-                                t_color: [0.5 * light, (0.47 - x as f32 * 0.005) * light, 0.40 * light],
-                            };
-                            graphics.draw(&batch, &data, &frame);
-                        },
-                        Air => (),
+                for ((i, j, k), chunk) in iproduct!(range(0i, 3), range(0i, 3), range(0i, 3))
+                    .map(|coord| (coord, world.get_chunk(coord)))
+                {
+                    for ((x, y, z), block) in chunk.blocks() {
+                        match block {
+                            Stone => {
+                                let model = [
+                                    [1.0, 0.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0, 0.0],
+                                    [0.0, 0.0, 1.0, 0.0],
+                                    [(i * 16 + x as int) as f32, (k * 16 + z as int) as f32, (j * 16 + y as int) as f32, 1.0],
+                                ];
+                                let light = (z as f32) / 30. + 0.6;
+                                let data = Params{
+                                    u_model_view_proj: cam::model_view_projection(
+                                        model,
+                                        first_person.camera(args.ext_dt).orthogonal(),
+                                        projection
+                                    ),
+                                    t_color: [0.5 * light, (0.47 - x as f32 * 0.005) * light, 0.40 * light],
+                                };
+                                graphics.draw(&batch, &data, &frame);
+                            },
+                            Air => (),
+                        }
                     }
                 }
                 graphics.end_frame();
