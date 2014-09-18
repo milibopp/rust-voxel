@@ -66,7 +66,7 @@ impl Landscape {
         let (x, y) = pos;
         let (dx, dy) = self.dims;
         if x < dx && y < dy {
-            Some(*self.height_data.get(x * dx + y))
+            Some(self.height_data[x * dx + y])
         }
         else {
             None

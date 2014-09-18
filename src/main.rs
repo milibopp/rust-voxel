@@ -18,9 +18,9 @@ use sdl2_game_window::WindowSDL2;
 use gfx::{Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
-use std::num::{One, Float};
-use voxel::{Air, Stone, Landscape};
-use std::rand::{Rng, SeedableRng, XorShiftRng};
+use std::num::Float;
+use voxel::Landscape;
+use std::rand::{SeedableRng, XorShiftRng};
 
 pub mod voxel;
 
