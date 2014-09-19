@@ -31,16 +31,18 @@ pub mod geometry;
 #[shader_param(CubeBatch)]
 struct Params {
     u_model_view_proj: [[f32, ..4], ..4],
-    t_color: [f32, ..3],
 }
 
 static VERTEX_SRC: gfx::ShaderSource = shaders! {
 GLSL_150: b"
     #version 150 core
     in vec3 a_pos;
+    in vec3 a_color;
+    out vec3 v_color;
     uniform mat4 u_model_view_proj;
     void main() {
         gl_Position = u_model_view_proj * vec4(a_pos, 1.0);
+        v_color = a_color;
     }
 "
 };
@@ -48,10 +50,10 @@ GLSL_150: b"
 static FRAGMENT_SRC: gfx::ShaderSource = shaders! {
 GLSL_150: b"
     #version 150 core
+    in vec3 v_color;
     out vec4 o_Color;
-    uniform vec3 t_color;
     void main() {
-        o_Color = vec4(t_color, 1.0);
+        o_Color = vec4(v_color, 1.0);
     }
 "
 };
@@ -102,7 +104,7 @@ fn main() {
         iproduct!(range(0i, 10), range(0i, 10), range(0i, 3))
         .map(|coord| {
             let chunk = world.get_chunk(coord);
-            let (mesh, slice) = make_chunk(&mut graphics.device, chunk);
+            let (mesh, slice) = make_chunk(&mut graphics.device, coord, chunk);
             let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
             (coord, batch, mesh)
         })
@@ -163,14 +165,12 @@ fn main() {
                             1.0
                         ],
                     ];
-                    let light = (k as f32) / 30. + 0.6;
                     let data = Params{
                         u_model_view_proj: cam::model_view_projection(
                             model,
                             first_person.camera(args.ext_dt).orthogonal(),
                             projection
                         ),
-                        t_color: [0.5 * light, (0.47 - i as f32 * 0.005) * light, 0.40 * light],
                     };
                     graphics.draw(&batch, &data, &frame);
                 }
