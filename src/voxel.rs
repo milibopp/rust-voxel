@@ -86,12 +86,10 @@ impl World {
                 // Bilinear interpolation
                 let corners: Vec<((int, int), f64)> =
                     iproduct!(range(0i, 2), range(0i, 2))
-                    .map(|(di, dj)|
-                        (((1 - di) * 16, (1 - dj) * 16),
-                        landscape
-                        .get(((i + di) as uint, (j + dj) as uint))
-                        .unwrap())
-                    )
+                    .map(|(di, dj)| (
+                        ((1 - di) * 16, (1 - dj) * 16),
+                        landscape.get(((i + di) as uint, (j + dj) as uint))
+                    ))
                     .collect();
                 for (x, y) in iproduct!(range(0i, 16), range(0i, 16)) {
                     height_map[x as uint][y as uint] =
@@ -149,24 +147,24 @@ pub struct Landscape {
 
 impl Landscape {
     pub fn generate<S, R: Rng + SeedableRng<S>>(rng: &mut R, dims: (uint, uint)) -> Landscape {
-        let (x, y) = dims;
+        let (dx, dy) = dims;
         let mut height_range = dist::Range::new(1.0f64, 6.0);
         Landscape {
-            height_data: range(0, x * y)
+            height_data: range(0, dx * dy)
                 .map(|_| height_range.sample(rng))
                 .collect(),
             dims: dims,
         }
     }
 
-    pub fn get(&self, pos: (uint, uint)) -> Option<f64> {
+    pub fn get(&self, pos: (uint, uint)) -> f64 {
         let (x, y) = pos;
         let (dx, dy) = self.dims;
         if x < dx && y < dy {
-            Some(self.height_data[x * dx + y])
+            self.height_data[x * dx + y]
         }
         else {
-            None
+            0.0
         }
     }
 }

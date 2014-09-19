@@ -1,11 +1,9 @@
 // Cube graphics
 
+use std::slice::Slice;
 use std::rand::{XorShiftRng, SeedableRng};
 use std::rand::distributions::{Normal, IndependentSample};
-use gfx::{
-    TriangleList, IndexSlice8, IndexSlice16, Device, CommandBuffer,
-    DeviceHelper, Slice, Mesh
-};
+use gfx;
 
 use voxel::{Air, Stone, Chunk};
 
@@ -26,10 +24,10 @@ impl Vertex {
 }
 
 
-pub fn make_chunk<C: CommandBuffer, D: Device<C> + DeviceHelper<C>>
-    (device: &mut D, pos: (int, int, int), chunk: &Chunk) -> (Mesh, Slice)
+pub fn make_chunk<C: gfx::CommandBuffer, D: gfx::Device<C> + gfx::DeviceHelper<C>>
+    (device: &mut D, pos: (int, int, int), chunk: &Chunk) -> (gfx::Mesh, gfx::Slice)
 {
-    let simple_cube = vec![
+    let simple_cube = [
         (0., 0., 1.),
         (1., 0., 1.),
         (0., 1., 1.),
@@ -39,8 +37,8 @@ pub fn make_chunk<C: CommandBuffer, D: Device<C> + DeviceHelper<C>>
         (0., 0., 0.),
         (1., 0., 0.),
     ];
-    let simple_cube_indices = vec![
-        0u16, 1, 2, 2, 3, 1,
+    let simple_cube_indices = [
+        0u32, 1, 2, 2, 3, 1,
         2, 3, 4, 4, 5, 3,
         0, 1, 6, 6, 7, 1,
         4, 5, 6, 6, 7, 5,
@@ -54,7 +52,7 @@ pub fn make_chunk<C: CommandBuffer, D: Device<C> + DeviceHelper<C>>
     let (i, j, k) = pos;
     rng.reseed([
         (i * j * k) as u32, (k * 166 - i) as u32,
-        (j * 99 - i) as u32, 88991
+        (j * 99 - i) as u32, 8991
     ]);
     for ((x, y, z), block) in chunk.blocks() {
         match block {
@@ -66,7 +64,7 @@ pub fn make_chunk<C: CommandBuffer, D: Device<C> + DeviceHelper<C>>
                         [grey, grey, grey]
                     ))
                 );
-                let idx_offset = (vertices.len() - 8) as u16;
+                let idx_offset = (vertices.len() - 8) as u32;
                 indices.extend(
                     simple_cube_indices.iter()
                     .map(|k| k + idx_offset)
@@ -75,12 +73,11 @@ pub fn make_chunk<C: CommandBuffer, D: Device<C> + DeviceHelper<C>>
             Air => (),
         }
     }
-
     (
-        device.create_mesh(vertices),
-        IndexSlice16(
-            TriangleList,
-            device.create_buffer_static(&indices),
+        device.create_mesh(vertices.as_slice()),
+        gfx::IndexSlice32(
+            gfx::TriangleList,
+            device.create_buffer_static(indices.as_slice()),
             0, indices.len() as u32
         ),
     )

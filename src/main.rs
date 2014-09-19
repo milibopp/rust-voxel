@@ -4,6 +4,7 @@
 
 extern crate gfx;
 extern crate piston;
+extern crate sdl2;
 extern crate sdl2_game_window;
 #[phase(plugin)]
 extern crate gfx_macros;
@@ -20,6 +21,7 @@ use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
 use std::num::Float;
 use std::rand::{SeedableRng, XorShiftRng};
+use std::collections::HashMap;
 
 use voxel::{Stone, Air, World, Landscape};
 use geometry::make_chunk;
@@ -84,7 +86,10 @@ fn main() {
 
     window.capture_cursor(true);
 
-    let (mut device, frame) = window.gfx();
+    let mut device = gfx::GlDevice::new(|s| unsafe {
+        std::mem::transmute(sdl2::video::gl_get_proc_address(s))
+    });
+    let frame = gfx::Frame::new(win_width as u16, win_height as u16);
     let state = gfx::DrawState::new().depth(gfx::state::LessEqual, true);
 
     // Generate geometry (this requires a device)
@@ -99,16 +104,8 @@ fn main() {
     let scape = Landscape::generate(&mut rng, (16, 16));
     let mut world = World::new(scape);
 
-    // Pre-generate chunks
-    let render_chunks: Vec<((int, int, int), CubeBatch, Mesh)> =
-        iproduct!(range(0i, 10), range(0i, 10), range(0i, 3))
-        .map(|coord| {
-            let chunk = world.get_chunk(coord);
-            let (mesh, slice) = make_chunk(&mut graphics.device, coord, chunk);
-            let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
-            (coord, batch, mesh)
-        })
-        .collect();
+    // Cache for rendered chunks
+    let mut render_chunk_cache = HashMap::new();
 
     // Camera handling
     let projection = cam::CameraPerspective {
@@ -153,7 +150,24 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
-                for &((i, j, k), batch, _) in render_chunks.iter() {
+                let p: Vec<int> = first_person.position.iter().map(|x| (x / 16.).round() as int).collect();
+                let render_chunks: Vec<((int, int, int), &mut CubeBatch)> = iproduct!(
+                        range(p[0] - 1, p[0] + 2),
+                        range(p[1] - 1, p[1] + 2),
+                        range(p[2] - 4, p[2] + 2))
+                    .map(|coord| (
+                        coord,
+                        render_chunk_cache.find_or_insert_with(coord, |&coord| {
+                            println!("get_chunk {}", coord);
+                            let chunk = world.get_chunk(coord);
+                            let (mesh, slice) = make_chunk(&mut graphics.device, coord, chunk);
+                            let batch: CubeBatch = graphics.make_batch(
+                                &program, &mesh, slice, &state).unwrap();
+                            batch
+                        })
+                    ))
+                    .collect();
+                for &((i, j, k), &batch) in render_chunks.iter() {
                     let model = [
                         [1.0, 0.0, 0.0, 0.0],
                         [0.0, 1.0, 0.0, 0.0],
@@ -172,6 +186,7 @@ fn main() {
                             projection
                         ),
                     };
+                    println!("pre draw");
                     graphics.draw(&batch, &data, &frame);
                 }
                 graphics.end_frame();
