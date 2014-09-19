@@ -15,14 +15,14 @@ extern crate itertools;
 
 // use glfw_game_window::WindowGLFW;
 use sdl2_game_window::WindowSDL2;
-use gfx::{Device, DeviceHelper};
+use gfx::{Mesh, Device, DeviceHelper};
 use piston::{cam, Window};
 use piston::input::{Keyboard, keyboard};
 use std::num::Float;
 use std::rand::{SeedableRng, XorShiftRng};
 
 use voxel::{Stone, Air, World, Landscape};
-use geometry::make_cube;
+use geometry::make_chunk;
 
 pub mod voxel;
 pub mod geometry;
@@ -86,18 +86,27 @@ fn main() {
     let state = gfx::DrawState::new().depth(gfx::state::LessEqual, true);
 
     // Generate geometry (this requires a device)
-    let (mesh, slice) = make_cube(&mut device);
     let program = device.link_program(
             VERTEX_SRC.clone(), 
             FRAGMENT_SRC.clone()
         ).unwrap();
     let mut graphics = gfx::Graphics::new(device);
-    let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
 
     // Game state data
     let mut rng: XorShiftRng = SeedableRng::from_seed([2, 3, 5, 8]);
     let scape = Landscape::generate(&mut rng, (16, 16));
     let mut world = World::new(scape);
+
+    // Pre-generate chunks
+    let render_chunks: Vec<((int, int, int), CubeBatch, Mesh)> =
+        iproduct!(range(0i, 10), range(0i, 10), range(0i, 3))
+        .map(|coord| {
+            let chunk = world.get_chunk(coord);
+            let (mesh, slice) = make_chunk(&mut graphics.device, chunk);
+            let batch: CubeBatch = graphics.make_batch(&program, &mesh, slice, &state).unwrap();
+            (coord, batch, mesh)
+        })
+        .collect();
 
     // Camera handling
     let projection = cam::CameraPerspective {
@@ -142,37 +151,28 @@ fn main() {
                     gfx::Color | gfx::Depth,
                     &frame
                 );
-                for ((i, j, k), chunk) in iproduct!(range(0i, 3), range(0i, 3), range(0i, 3))
-                    .map(|coord| (coord, world.get_chunk(coord)))
-                {
-                    for ((x, y, z), block) in chunk.blocks() {
-                        match block {
-                            Stone => {
-                                let model = [
-                                    [1.0, 0.0, 0.0, 0.0],
-                                    [0.0, 1.0, 0.0, 0.0],
-                                    [0.0, 0.0, 1.0, 0.0],
-                                    [
-                                        (i * 16 + x as int) as f32,
-                                        (k * 16 + z as int) as f32,
-                                        (j * 16 + y as int) as f32,
-                                        1.0
-                                    ],
-                                ];
-                                let light = (z as f32) / 30. + 0.6;
-                                let data = Params{
-                                    u_model_view_proj: cam::model_view_projection(
-                                        model,
-                                        first_person.camera(args.ext_dt).orthogonal(),
-                                        projection
-                                    ),
-                                    t_color: [0.5 * light, (0.47 - x as f32 * 0.005) * light, 0.40 * light],
-                                };
-                                graphics.draw(&batch, &data, &frame);
-                            },
-                            Air => (),
-                        }
-                    }
+                for &((i, j, k), batch, _) in render_chunks.iter() {
+                    let model = [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [
+                            (i * 16) as f32,
+                            (k * 16) as f32,
+                            (j * 16) as f32,
+                            1.0
+                        ],
+                    ];
+                    let light = (k as f32) / 30. + 0.6;
+                    let data = Params{
+                        u_model_view_proj: cam::model_view_projection(
+                            model,
+                            first_person.camera(args.ext_dt).orthogonal(),
+                            projection
+                        ),
+                        t_color: [0.5 * light, (0.47 - i as f32 * 0.005) * light, 0.40 * light],
+                    };
+                    graphics.draw(&batch, &data, &frame);
                 }
                 graphics.end_frame();
             },
