@@ -151,23 +151,22 @@ fn main() {
                     &frame
                 );
                 let p: Vec<int> = first_person.position.iter().map(|x| (x / 16.).round() as int).collect();
-                let render_chunks: Vec<((int, int, int), &mut CubeBatch)> = iproduct!(
+                let render_coords: Vec<(int, int, int)> = iproduct!(
                         range(p[0] - 1, p[0] + 2),
                         range(p[1] - 1, p[1] + 2),
                         range(p[2] - 4, p[2] + 2))
-                    .map(|coord| (
-                        coord,
-                        render_chunk_cache.find_or_insert_with(coord, |&coord| {
-                            println!("get_chunk {}", coord);
-                            let chunk = world.get_chunk(coord);
-                            let (mesh, slice) = make_chunk(&mut graphics.device, coord, chunk);
-                            let batch: CubeBatch = graphics.make_batch(
-                                &program, &mesh, slice, &state).unwrap();
-                            batch
-                        })
-                    ))
                     .collect();
-                for &((i, j, k), &batch) in render_chunks.iter() {
+                for &coord in render_coords.iter() {
+                    render_chunk_cache.find_or_insert_with(coord, |&c| {
+                        let chunk = world.get_chunk(c);
+                        let (mesh, slice) = make_chunk(&mut graphics.device, c, chunk);
+                        let batch: CubeBatch = graphics.make_batch(
+                            &program, &mesh, slice, &state).unwrap();
+                        batch
+                    });
+                }
+                for &(i, j, k) in render_coords.iter() {
+                    let batch = render_chunk_cache.find(&(i, j, k)).unwrap();
                     let model = [
                         [1.0, 0.0, 0.0, 0.0],
                         [0.0, 1.0, 0.0, 0.0],
@@ -186,8 +185,8 @@ fn main() {
                             projection
                         ),
                     };
-                    println!("pre draw");
-                    graphics.draw(&batch, &data, &frame);
+                    println!("pre draw {}, {}, {}", batch.mesh_id, batch.program_id, batch.state_id);
+                    graphics.draw(batch, &data, &frame);
                 }
                 graphics.end_frame();
             },
