@@ -185,7 +185,6 @@ fn main() {
                             projection
                         ),
                     };
-                    println!("pre draw {}, {}, {}", batch.mesh_id, batch.program_id, batch.state_id);
                     graphics.draw(batch, &data, &frame);
                 }
                 graphics.end_frame();

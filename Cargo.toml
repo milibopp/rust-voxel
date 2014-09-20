@@ -15,7 +15,7 @@ git = "https://github.com/pistondevelopers/piston"
 git = "https://github.com/pistondevelopers/sdl2_game_window"
 
 [dependencies.gfx]
-git = "file:///home/eduard/dev/poseidon/gfx-rs"
+git = "https://github.com/gfx-rs/gfx-rs"
 
 [dependencies.itertools]
 git = "https://github.com/bluss/rust-itertools"
